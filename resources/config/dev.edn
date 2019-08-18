@@ -1,0 +1,9 @@
+{:db/impl {:impl :crux
+           :config {:type :standalone
+                    :config {:kv-backend "crux.kv.memdb.MemKv"
+                             :db-dir "data/db-dir-1"}}}
+ 
+ :router/ring-handler {:db-box #ig/ref :db/impl}
+
+ :web/server {:port 8080
+              :handler #ig/ref :router/ring-handler}}

@@ -1,0 +1,44 @@
+{:paths ["src" "resources"]
+
+ :deps
+ {;; Word case coonversion library
+  camel-snake-kebab                  {:mvn/version "0.4.0"}
+  ;; Injection of dependency platform
+  integrant                          {:mvn/version "0.7.0"}
+  ;; Crux bitemporal, document database
+  juxt/crux                          {:mvn/version "19.04-1.0.3-alpha"}
+  ;; Reitit for web routing
+  metosin/reitit-core                {:mvn/version "0.3.7"}
+  ;; Ring handlers for reitit
+  metosin/reitit-ring                {:mvn/version "0.3.7"}
+  ;; Our beloved
+  org.clojure/clojure                {:mvn/version "1.10.1"}
+  ;; HTTP server powered by Undertow
+  org.immutant/web                   {:mvn/version "2.1.10"}
+  ;; Ring middleware for content-type wrapping
+  ring-middleware-format             {:mvn/version "0.7.4"}
+  ;; Ring default middlewares
+  ring/ring-defaults                 {:mvn/version "0.3.2"}
+  ;; Ring logger middleware
+  ring-logger                        {:mvn/version "1.0.1"}}
+
+ :aliases
+ {:dev
+  {:extra-paths ["dev"]
+   :extra-deps
+   {;; Reloaded workflow for Integrant
+    integrant/repl                   {:mvn/version "0.3.1"}}}
+
+  :prod
+  {:extra-deps
+   {;; Crux production dependency (event source logging)
+    org.apache.kafka/kafka_2.11        {:mvn/version "2.1.0"}
+    ;; Crux production dependency (state store)
+    org.rocksdb/rocksdbjni             {:mvn/version "5.17.2"}}}
+
+  :test
+  {:extra-paths ["test"]
+   :extra-deps
+   {;; Test runner
+    lambdaisland/kaocha              {:mvn/version "0.0-413"}}
+   :main-opts ["-m" "kaocha.runner"]}}}
