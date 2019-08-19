@@ -1,19 +1,12 @@
 (ns todo-api.adapters.db.impls.crux
-  (:require [crux.api :as crux]
+  (:require [clojure.set :refer [rename-keys]]
+            [crux.api :as crux]
             [todo-api.adapters.db.box :refer [IDBBox]]
             [todo-api.adapters.db.todos :refer [ITodosOps]]
             [todo-api.adapters.db.sub-tasks :refer [ISubTasksOps]]))
 
 (defn ^:private rand-uuid []
   (java.util.UUID/randomUUID))
-
-(defn ^:private create! [db-box entry-type entry]
-  (let [uuid (rand-uuid)]
-    (crux/submit-tx (.conn db-box)
-                    [[:crux.tx/put uuid
-                      (assoc entry
-                             :crux.db/id uuid
-                             :todo-api/type entry-type)]])))
 
 (declare ^:private get-by-id)
 
@@ -28,12 +21,24 @@
                              m))
                          entity)))
 
+(defn ^:private clean-up
+  [entity]
+  (-> entity
+      (dissoc :todo-api/type)
+      (rename-keys {:crux.db/id :id})))
+
+(defn ^:private external-prep
+  [db entity relations]
+  (as-> entity $
+    (assoc-relations db $ relations)
+    (clean-up $)))
+
 (defn ^:private get-by-id
   ([db id]
    (get-by-id db id nil))
   ([db id relations]
    (let [e (crux/entity db id)]
-     (assoc-relations db e relations))))
+     (external-prep db e relations))))
 
 (defn ^:private get-all
   ([db entry-type]
@@ -42,15 +47,30 @@
    (let [coll (crux/q db {:find ['?t]
                           :where [['?t :todo-api/type entry-type]]})]
      (map #(let [e (crux/entity db (first %))]
-             (assoc-relations db e relations))
+             (external-prep db e relations))
           coll))))
 
+(defn ^:private create!
+  ([db-box entry-type entry]
+   (create! db-box entry-type entry nil))
+  ([db-box entry-type entry relations-map]
+   (let [uuid (rand-uuid)]
+     (when (crux/submit-tx (.conn db-box)
+                           [[:crux.tx/put uuid
+                             (assoc entry
+                                    :crux.db/id uuid
+                                    :todo-api/type entry-type)]])
+       (get-by-id (-> db-box .conn crux/db) uuid)))))
+
 (defn ^:private update! [db-box entry-type entry]
-  (let [{:keys [:crux.db/id]} entry]
-    (crux/submit-tx (.conn db-box)
-                    [[:crux.tx/put id
-                      (assoc entry
-                             :todo-api/type entry-type)]])))
+  (let [{:keys [:id]} entry]
+    (when (crux/submit-tx (.conn db-box)
+                          [[:crux.tx/cas id
+                            (-> entry
+                                (assoc :crux.db/id id
+                                       :todo-api/type entry-type)
+                                (dissoc :id))]])
+      (get-by-id (-> db-box .conn crux/db) id))))
 
 (defn ^:private delete! [db-box id]
   (crux/submit-tx (.conn db-box)
@@ -60,7 +80,7 @@
   (let [conn (.conn db-box)
         history (crux/history conn id)]
     (map (fn [{:keys [crux.db/id crux.db/valid-time] :as h}]
-           (merge h (crux/entity (crux/db conn valid-time) id)))
+           (merge h (get-by-id (crux/db conn valid-time) id)))
          history)))
 
 
@@ -68,7 +88,7 @@
   ITodosOps
 
   (create! [{:keys [db-box]} todo]
-    (create! db-box :todo-entry todo))
+    (create! db-box :todo-entry todo {:todo/sub-tasks :sub-task-entry}))
 
   (get-by-id [{:keys [db-box]} id]
     (-> db-box
@@ -77,15 +97,13 @@
         (get-by-id id #{:todo/sub-tasks})))
   
   (get-all [{:keys [db-box]}]
-    #_(println db-box)
-    (println "aqui")
     (-> db-box
         .conn
         crux/db
         (get-all :todo-entry #{:todo/sub-tasks})))
   
   (update! [{:keys [db-box]} todo]
-    (update! db-box :todo-entry todo))
+    (update! db-box :todo-entry todo {:todo/sub-tasks :sub-task-entry}))
   
   (delete! [{:keys [db-box]} id]
     (delete! db-box id))
@@ -166,6 +184,8 @@
 
   (.create! (->TodoOperations) inst {:i-have-kids :yes
                                      :todo/sub-tasks #{#uuid "159ea8d7-a90e-42b2-82ed-08ce515975cc"}})
+
+  (-> inst .todos-ops (.create! {:foo :bar}))
   
   (-> inst .todos-ops .get-all)
 

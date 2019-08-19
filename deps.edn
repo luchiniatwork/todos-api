@@ -1,9 +1,7 @@
 {:paths ["src" "resources"]
 
  :deps
- {;; Word case coonversion library
-  camel-snake-kebab                  {:mvn/version "0.4.0"}
-  ;; Injection of dependency platform
+ {;; Injection of dependency platform
   integrant                          {:mvn/version "0.7.0"}
   ;; Crux bitemporal, document database
   juxt/crux                          {:mvn/version "19.04-1.0.3-alpha"}
